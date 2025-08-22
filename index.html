@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Owner-Op Cost Per Mile Calculator | XStream Dispatching</title>
+  <meta name="description" content="Know your true cost per mile, quote with confidence, and stop driving blind. Free CPM calculator for owner-operators." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚚</text></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>body{ -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }</style>
+</head>
+<body class="bg-slate-50">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useMemo, useState } = React;
+
+    function CPMCalculator() {
+      const [inputs, setInputs] = useState({
+        weeklyMiles: 2500, weeksPerMonth: 4.33, mpg: 7.0, dieselPrice: 4.0, deadheadPct: 10,
+        insMonthly: 1200, truckPmt: 2000, trailerPmt: 0, permitsIfTAFixed: 100, eldTech: 50, parking: 100, officeMiscFixed: 150,
+        maintPerMile: 0.15, tiresPerMile: 0.03, fluidsDefPerMile: 0.02, tollsPerMile: 0.02, iftaNetPerMile: 0.02, miscPerMile: 0.00,
+        profitPerMonth: 4000,
+      });
+      const n = (v) => (isFinite(Number(v)) ? Number(v) : 0);
+      const monthlyMiles = useMemo(() => Math.max(0, n(inputs.weeklyMiles) * n(inputs.weeksPerMonth)), [inputs.weeklyMiles, inputs.weeksPerMonth]);
+      const loadedPct = useMemo(() => Math.min(0.999, Math.max(0.01, (100 - n(inputs.deadheadPct)) / 100)), [inputs.deadheadPct]);
+      const fuelPerMile = useMemo(() => (n(inputs.dieselPrice) / Math.max(0.1, n(inputs.mpg))), [inputs.dieselPrice, inputs.mpg]);
+      const fixedMonthlyTotal = useMemo(() => n(inputs.insMonthly)+n(inputs.truckPmt)+n(inputs.trailerPmt)+n(inputs.permitsIfTAFixed)+n(inputs.eldTech)+n(inputs.parking)+n(inputs.officeMiscFixed), [inputs]);
+      const fixedCPM = useMemo(() => (monthlyMiles > 0 ? fixedMonthlyTotal / monthlyMiles : 0), [fixedMonthlyTotal, monthlyMiles]);
+      const variableCPM = useMemo(() => (fuelPerMile + n(inputs.maintPerMile) + n(inputs.tiresPerMile) + n(inputs.fluidsDefPerMile) + n(inputs.tollsPerMile) + n(inputs.iftaNetPerMile) + n(inputs.miscPerMile)), [inputs, fuelPerMile]);
+      const allInCPM = fixedCPM + variableCPM;
+      const breakEvenRatePerLoadedMile = useMemo(() => allInCPM / loadedPct, [allInCPM, loadedPct]);
+      const targetRatePerLoadedMile = useMemo(() => {
+        const profitCPM = monthlyMiles > 0 ? n(inputs.profitPerMonth) / monthlyMiles : 0;
+        return (allInCPM + profitCPM) / loadedPct;
+      }, [allInCPM, inputs.profitPerMonth, monthlyMiles, loadedPct]);
+      const monthlyBreakEvenRevenue = allInCPM * monthlyMiles;
+      const weeklyBreakEvenRevenue = monthlyBreakEvenRevenue / Math.max(0.01, n(inputs.weeksPerMonth));
+
+      function handleChange(key, value) { setInputs((s) => ({ ...s, [key]: value })); }
+      function money(x) { return x >= 0 ? `$${x.toFixed(2)}` : `-$${Math.abs(x).toFixed(2)}`; }
+      function perMile(x) { return `${money(x)}/mi`; }
+      function percent(x) { return `${(x * 100).toFixed(0)}%`; }
+
+      function openContact() {
+        // Navigate parent Wix page to /contact (update if your contact slug differs)
+        window.top.location.href = "/contact";
+      }
+
+      return (
+        <div className="min-h-screen bg-slate-50 text-slate-800">
+          <div className="mx-auto max-w-6xl p-4 md:p-8">
+            <header className="mb-6 md:mb-8">
+              <h1 className="text-2xl md:text-4xl font-bold tracking-tight">Owner-Op Cost Per Mile Calculator</h1>
+              <p className="text-slate-600 mt-2 md:mt-3">Know your true cost, quote with confidence, and stop driving blind.</p>
+            </header>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+              <section className="lg:col-span-2 bg-white rounded-2xl shadow p-4 md:p-6">
+                <h2 className="text-lg md:text-xl font-semibold mb-4">Inputs</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Field label="Weekly miles" suffix="mi" value={inputs.weeklyMiles} onChange={(v) => handleChange("weeklyMiles", Number(v))} />
+                  <Field label="Weeks per month" value={inputs.weeksPerMonth} onChange={(v) => handleChange("weeksPerMonth", Number(v))} />
+                  <Field label="MPG" value={inputs.mpg} onChange={(v) => handleChange("mpg", Number(v))} />
+                  <Field label="Diesel price" prefix="$" value={inputs.dieselPrice} onChange={(v) => handleChange("dieselPrice", Number(v))} />
+                  <Field label="Deadhead %" suffix="%" value={inputs.deadheadPct} onChange={(v) => handleChange("deadheadPct", Number(v))} />
+                </div>
+
+                <hr className="my-6" />
+                <h3 className="text-base md:text-lg font-semibold mb-3">Fixed monthly costs</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field label="Insurance" prefix="$" value={inputs.insMonthly} onChange={(v) => handleChange("insMonthly", Number(v))} />
+                  <Field label="Truck payment" prefix="$" value={inputs.truckPmt} onChange={(v) => handleChange("truckPmt", Number(v))} />
+                  <Field label="Trailer payment" prefix="$" value={inputs.trailerPmt} onChange={(v) => handleChange("trailerPmt", Number(v))} />
+                  <Field label="Permits & base (fixed)" prefix="$" value={inputs.permitsIfTAFixed} onChange={(v) => handleChange("permitsIfTAFixed", Number(v))} />
+                  <Field label="ELD & tech" prefix="$" value={inputs.eldTech} onChange={(v) => handleChange("eldTech", Number(v))} />
+                  <Field label="Parking" prefix="$" value={inputs.parking} onChange={(v) => handleChange("parking", Number(v))} />
+                  <Field label="Office / misc" prefix="$" value={inputs.officeMiscFixed} onChange={(v) => handleChange("officeMiscFixed", Number(v))} />
+                </div>
+
+                <div className="mt-3 text-sm text-slate-500">Fixed total: <strong className="text-slate-800">{money(fixedMonthlyTotal)}</strong>/mo ⇒ {perMile(fixedCPM)} on {monthlyMiles.toLocaleString()} mi/mo</div>
+
+                <hr className="my-6" />
+                <h3 className="text-base md:text-lg font-semibold mb-3">Variable costs ($/mile)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field label="Fuel (auto)" prefix="$" value={fuelPerMile.toFixed(3)} readOnly />
+                  <Field label="Maintenance" prefix="$" value={inputs.maintPerMile} onChange={(v) => handleChange("maintPerMile", Number(v))} />
+                  <Field label="Tires" prefix="$" value={inputs.tiresPerMile} onChange={(v) => handleChange("tiresPerMile", Number(v))} />
+                  <Field label="Fluids/DEF" prefix="$" value={inputs.fluidsDefPerMile} onChange={(v) => handleChange("fluidsDefPerMile", Number(v))} />
+                  <Field label="Tolls" prefix="$" value={inputs.tollsPerMile} onChange={(v) => handleChange("tollsPerMile", Number(v))} />
+                  <Field label="IFTA (net)" prefix="$" value={inputs.iftaNetPerMile} onChange={(v) => handleChange("iftaNetPerMile", Number(v))} />
+                  <Field label="Misc" prefix="$" value={inputs.miscPerMile} onChange={(v) => handleChange("miscPerMile", Number(v))} />
+                </div>
+
+                <div className="mt-3 text-sm text-slate-500">Variable total: <strong className="text-slate-800">{perMile(variableCPM)}</strong></div>
+                <hr className="my-6" />
+                <h3 className="text-base md:text-lg font-semibold mb-3">Profit goal</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field label="Target owner draw (per month)" prefix="$" value={inputs.profitPerMonth} onChange={(v) => handleChange("profitPerMonth", Number(v))} />
+                </div>
+              </section>
+
+              <section className="bg-white rounded-2xl shadow p-4 md:p-6">
+                <h2 className="text-lg md:text-xl font-semibold mb-4">Results</h2>
+                <Stat label="All-in cost per mile (total mi)" value={perMile(allInCPM)} highlight />
+                <Stat label="Break-even rate per loaded mile" value={`${money(breakEvenRatePerLoadedMile)}/loaded mi`} />
+                <Stat label="Target rate per loaded mile (with profit)" value={`${money(targetRatePerLoadedMile)}/loaded mi`} />
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-slate-50 rounded-xl p-3">
+                    <div className="text-slate-500">Monthly break-even revenue</div>
+                    <div className="text-lg font-semibold">{money(monthlyBreakEvenRevenue)}</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-3">
+                    <div className="text-slate-500">Weekly break-even revenue</div>
+                    <div className="text-lg font-semibold">{money(weeklyBreakEvenRevenue)}</div>
+                  </div>
+                </div>
+                <div className="mt-4 text-sm text-slate-500">
+                  Assumptions: loaded miles {percent(loadedPct)}, monthly miles {monthlyMiles.toLocaleString()}. Fuel auto-calculated from diesel price and MPG.
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  <button className="px-4 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800" onClick={openContact}>Email me my plan</button>
+                  <button className="px-4 py-2 rounded-xl border font-medium hover:bg-slate-100" onClick={() => window.print()}>Print / Save PDF</button>
+                </div>
+              </section>
+            </div>
+
+            <footer className="text-xs text-slate-500 mt-6 md:mt-8">
+              Disclaimer: This tool provides estimates for planning only and is not tax or legal advice. Adjust all inputs for your situation.
+            </footer>
+          </div>
+        </div>
+      );
+    }
+
+    function Field({ label, value, onChange, prefix, suffix, readOnly }) {
+      return (
+        <label className="flex flex-col gap-1">
+          <span className="text-sm text-slate-600">{label}</span>
+          <div className={\`flex items-center rounded-xl border bg-white \${readOnly ? "opacity-75" : ""}\`}>
+            {prefix && <span className="px-3 text-slate-500">{prefix}</span>}
+            <input
+              className="w-full rounded-xl px-3 py-2 outline-none"
+              type="number"
+              step="any"
+              value={value}
+              readOnly={readOnly}
+              onChange={(e) => onChange && onChange(e.target.value)}
+            />
+            {suffix && <span className="px-3 text-slate-500">{suffix}</span>}
+          </div>
+        </label>
+      );
+    }
+
+    function Stat({ label, value, highlight }) {
+      return (
+        <div className={\`rounded-xl p-3 mb-3 \${highlight ? "bg-slate-900 text-white" : "bg-slate-50"}\`}>
+          <div className={\`text-xs \${highlight ? "text-slate-200" : "text-slate-500"}\`}>{label}</div>
+          <div className={\`text-xl font-semibold \${highlight ? "text-white" : "text-slate-900"}\`}>{value}</div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<CPMCalculator />);
+  </script>
+</body>
+</html>
